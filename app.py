@@ -9,13 +9,9 @@ from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import css, bot_template, user_template
 from langchain_groq import ChatGroq
 import os
-from dotenv import load_dotenv
-from langchain.vectorstores import FAISS
 
-import os
-
-load_dotenv()  # Load environment variables from the .env file
-
+# Load environment variables from the .env file
+load_dotenv()
 
 # Initialize GROQ chat model
 def init_groq_model():
@@ -28,6 +24,7 @@ def init_groq_model():
 
 llm_groq = init_groq_model()
 
+# Extract text from uploaded PDF files
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -39,22 +36,26 @@ def get_pdf_text(pdf_docs):
             st.error(f"Error reading PDF: {e}")
     return text
 
+# Split text into manageable chunks for embeddings
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator="\n", chunk_size=3000, chunk_overlap=200, length_function=len
     )
     return text_splitter.split_text(text)
 
+# Create a FAISS vectorstore from text chunks
 def get_vectorstore(text_chunks):
     embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
     return FAISS.from_texts(texts=text_chunks, embedding=embeddings)
 
+# Set up a conversational retrieval chain with memory
 def get_conversation_chain(vectorstore):
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     return ConversationalRetrievalChain.from_llm(
         llm=llm_groq, retriever=vectorstore.as_retriever(), memory=memory
     )
 
+# Handle user input and display chat history
 def handle_userinput(user_question):
     if st.session_state.conversation:
         response = st.session_state.conversation({'question': user_question})
@@ -64,26 +65,28 @@ def handle_userinput(user_question):
             template = user_template if i % 2 == 0 else bot_template
             st.write(template.replace("{{MSG}}", message.content), unsafe_allow_html=True)
     else:
-        st.warning("Please upload and process your resume  first.")
+        st.warning("Please upload and process your resume first.")
 
 def main():
-    load_dotenv()
-    st.set_page_config(page_title="chat with your job assistant made by jai ", page_icon=":books:")
+    st.set_page_config(page_title="Chat with your Job Assistant", page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
 
+    # Initialize session state variables
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    st.header("Chat with job assistant made by jai  :books:")
-    user_question = st.text_input("Ask a question about your resume or job :")
+    # Page header
+    st.header("Chat with your Job Assistant :books:")
+    user_question = st.text_input("Ask a question about your resume or job:")
     if user_question:
         handle_userinput(user_question)
 
+    # Sidebar for document upload and processing
     with st.sidebar:
-        st.subheader("Your documents")
-        pdf_docs = st.file_uploader("Upload your resume  PDFs here and click on 'Process'", accept_multiple_files=True)
+        st.subheader("Your Documents")
+        pdf_docs = st.file_uploader("Upload your resume PDFs here and click on 'Process'", accept_multiple_files=True)
         if st.button("Process"):
             if pdf_docs:
                 with st.spinner("Processing..."):
@@ -95,7 +98,7 @@ def main():
                     except Exception as e:
                         st.error(f"Error processing documents: {e}")
             else:
-                st.warning("Please upload  resume PDFs before processing.")
+                st.warning("Please upload resume PDFs before processing.")
 
 if __name__ == '__main__':
     main()
